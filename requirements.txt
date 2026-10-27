@@ -1,0 +1,2 @@
+# ChronoRaft: Zero external dependencies!
+# Pure Python standard library (Python >= 3.10)
