@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChronoRaft // 3D Distributed Consensus Engine & Chaos Hologram</title>
+  <style>
+    :root {
+      --bg-space: #06080f;
+      --bg-panel: rgba(10, 15, 28, 0.85);
+      --bg-panel-hover: rgba(18, 26, 46, 0.92);
+      --bg-panel-border: rgba(0, 243, 255, 0.22);
+      --cyan: #00f3ff;
+      --cyan-glow: rgba(0, 243, 255, 0.4);
+      --neon-green: #00ff88;
+      --amber: #ffaa00;
+      --crimson: #ff0055;
+      --gold: #ffd700;
+      --violet: #8a2be2;
+      --azure: #0088ff;
+      --slate: #94a3b8;
+      --text: #f8fafc;
+      --font-mono: "JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-space);
+      font-family: var(--font-mono);
+      color: var(--text);
+    }
+
+    #webgl-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    .space-grid {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 2;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(0, 243, 255, 0.04) 0%, transparent 75%),
+        linear-gradient(rgba(0, 243, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 243, 255, 0.02) 1px, transparent 1px);
+      background-size: 100% 100%, 48px 48px, 48px 48px;
+    }
+
+    header {
+      position: absolute;
+      top: 14px;
+      left: 18px;
+      right: 18px;
+      height: 64px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--bg-panel-border);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px;
+      z-index: 10;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, var(--gold), var(--cyan));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 18px rgba(255, 215, 0, 0.4);
+    }
+
+    .brand-logo svg {
+      width: 24px;
+      height: 24px;
+      fill: none;
+      stroke: #06080f;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .brand-title {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: #fff;
+    }
+
+    .brand-title span {
+      color: var(--gold);
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      background: rgba(0, 255, 136, 0.12);
+      border: 1px solid rgba(0, 255, 136, 0.35);
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--neon-green);
+      letter-spacing: 0.8px;
+      transition: all 0.3s ease;
+    }
+
+    .status-badge.warning {
+      background: rgba(255, 170, 0, 0.12);
+      border-color: rgba(255, 170, 0, 0.35);
+      color: var(--amber);
+    }
+
+    .status-badge.danger {
+      background: rgba(255, 0, 85, 0.15);
+      border-color: rgba(255, 0, 85, 0.45);
+      color: var(--crimson);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
+      animation: pulse 1.6s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .telemetry-pills {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .pill {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+
+    .pill-label {
+      font-size: 9px;
+      color: var(--slate);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .pill-value {
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .pill-value.cyan { color: var(--cyan); }
+    .pill-value.green { color: var(--neon-green); }
+    .pill-value.amber { color: var(--amber); }
+    .pill-value.crimson { color: var(--crimson); }
+    .pill-value.gold { color: var(--gold); }
+
+    /* Left Sidebar: Nodes & Quorum Inspector */
+    .left-panel {
+      position: absolute;
+      top: 90px;
+      left: 18px;
+      width: 320px;
+      bottom: 180px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--bg-panel-border);
+      border-radius: 12px;
+      padding: 16px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      overflow-y: auto;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65);
+    }
+
+    .panel-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(0, 243, 255, 0.15);
+      padding-bottom: 8px;
+    }
+
+    .node-card {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.03);
+      border-left: 4px solid var(--slate);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .node-card:hover {
+      background: var(--bg-panel-hover);
+      transform: translateX(3px);
+    }
+
+    .node-card.leader { border-left-color: var(--gold); box-shadow: inset 0 0 12px rgba(255, 215, 0, 0.08); }
+    .node-card.follower { border-left-color: var(--azure); }
+    .node-card.candidate { border-left-color: var(--amber); }
+    .node-card.dead { border-left-color: var(--crimson); opacity: 0.6; }
+
+    .node-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .node-name {
+      font-weight: 800;
+      font-size: 12px;
+      color: #fff;
+    }
+
+    .role-badge {
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 4px;
+      letter-spacing: 0.8px;
+    }
+
+    .role-badge.leader { background: rgba(255, 215, 0, 0.2); color: var(--gold); border: 1px solid rgba(255, 215, 0, 0.4); }
+    .role-badge.follower { background: rgba(0, 136, 255, 0.2); color: var(--cyan); border: 1px solid rgba(0, 136, 255, 0.4); }
+    .role-badge.candidate { background: rgba(255, 170, 0, 0.2); color: var(--amber); border: 1px solid rgba(255, 170, 0, 0.4); }
+    .role-badge.dead { background: rgba(255, 0, 85, 0.2); color: var(--crimson); border: 1px solid rgba(255, 0, 85, 0.4); }
+
+    .node-stats-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--slate);
+    }
+
+    .node-sat-bar {
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+      margin-top: 2px;
+    }
+
+    .node-sat-fill {
+      height: 100%;
+      background: var(--cyan);
+      transition: width 0.3s ease;
+    }
+
+    /* Right Sidebar: Chaos Blade & Propose Engine */
+    .right-panel {
+      position: absolute;
+      top: 90px;
+      right: 18px;
+      width: 340px;
+      bottom: 180px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--bg-panel-border);
+      border-radius: 12px;
+      padding: 16px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      overflow-y: auto;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65);
+    }
+
+    .section-box {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .section-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--slate);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .chaos-btn-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    button.hud-btn {
+      background: rgba(0, 243, 255, 0.08);
+      border: 1px solid rgba(0, 243, 255, 0.3);
+      color: var(--cyan);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 8px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    button.hud-btn:hover {
+      background: rgba(0, 243, 255, 0.22);
+      border-color: var(--cyan);
+      box-shadow: 0 0 12px var(--cyan-glow);
+      transform: translateY(-1px);
+    }
+
+    button.hud-btn.danger {
+      background: rgba(255, 0, 85, 0.1);
+      border-color: rgba(255, 0, 85, 0.4);
+      color: var(--crimson);
+    }
+
+    button.hud-btn.danger:hover {
+      background: rgba(255, 0, 85, 0.25);
+      border-color: var(--crimson);
+      box-shadow: 0 0 12px rgba(255, 0, 85, 0.4);
+    }
+
+    button.hud-btn.heal {
+      background: rgba(0, 255, 136, 0.1);
+      border-color: rgba(0, 255, 136, 0.4);
+      color: var(--neon-green);
+    }
+
+    button.hud-btn.heal:hover {
+      background: rgba(0, 255, 136, 0.25);
+      border-color: var(--neon-green);
+      box-shadow: 0 0 12px rgba(0, 255, 136, 0.4);
+    }
+
+    button.hud-btn.gold {
+      background: rgba(255, 215, 0, 0.1);
+      border-color: rgba(255, 215, 0, 0.4);
+      color: var(--gold);
+    }
+
+    button.hud-btn.gold:hover {
+      background: rgba(255, 215, 0, 0.25);
+      border-color: var(--gold);
+      box-shadow: 0 0 12px rgba(255, 215, 0, 0.4);
+    }
+
+    .form-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    input.hud-input, select.hud-select {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      outline: none;
+      flex: 1;
+    }
+
+    input.hud-input:focus, select.hud-select:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 8px rgba(0, 243, 255, 0.3);
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 10px;
+      color: var(--slate);
+    }
+
+    .slider-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--cyan);
+    }
+
+    /* Bottom Event Log Stream */
+    .bottom-panel {
+      position: absolute;
+      bottom: 14px;
+      left: 18px;
+      right: 18px;
+      height: 150px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--bg-panel-border);
+      border-radius: 12px;
+      padding: 12px 18px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65);
+    }
+
+    .events-stream {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 11px;
+      padding-right: 6px;
+    }
+
+    .event-line {
+      display: flex;
+      gap: 12px;
+      align-items: baseline;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+
+    .event-line:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .ev-time { color: var(--slate); font-size: 9px; min-width: 60px; }
+    .ev-badge {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 3px;
+      min-width: 85px;
+      text-align: center;
+      text-transform: uppercase;
+    }
+    .ev-badge.heartbeat { background: rgba(0, 136, 255, 0.15); color: var(--cyan); }
+    .ev-badge.election { background: rgba(255, 170, 0, 0.15); color: var(--amber); }
+    .ev-badge.vote { background: rgba(255, 215, 0, 0.15); color: var(--gold); }
+    .ev-badge.leader { background: rgba(255, 215, 0, 0.25); color: var(--gold); font-weight: 800; }
+    .ev-badge.commit { background: rgba(0, 255, 136, 0.2); color: var(--neon-green); }
+    .ev-badge.chaos { background: rgba(255, 0, 85, 0.2); color: var(--crimson); }
+    .ev-badge.healed { background: rgba(0, 255, 136, 0.2); color: var(--neon-green); }
+    .ev-detail { color: #cbd5e1; flex: 1; word-break: break-all; }
+
+    /* Tooltip */
+    #tooltip {
+      position: absolute;
+      display: none;
+      pointer-events: none;
+      background: rgba(10, 16, 28, 0.94);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--cyan);
+      box-shadow: 0 0 20px rgba(0, 243, 255, 0.35);
+      border-radius: 8px;
+      padding: 10px 14px;
+      z-index: 100;
+      font-size: 11px;
+      line-height: 1.5;
+      min-width: 200px;
+    }
+
+    #tooltip .tt-title {
+      font-weight: 800;
+      color: var(--cyan);
+      border-bottom: 1px solid rgba(0, 243, 255, 0.2);
+      padding-bottom: 4px;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+    ::-webkit-scrollbar-thumb { background: rgba(0, 243, 255, 0.25); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(0, 243, 255, 0.5); }
+  </style>
+</head>
+<body>
+
+  <div id="webgl-container"></div>
+  <div class="space-grid"></div>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </div>
+      <div class="brand-title">CHRONO<span>RAFT</span></div>
+      <div class="status-badge" id="hud-badge">
+        <div class="status-dot"></div>
+        <span id="hud-badge-txt">QUORUM HEALTHY</span>
+      </div>
+    </div>
+
+    <div class="telemetry-pills">
+      <div class="pill">
+        <div class="pill-label">Cluster Leader</div>
+        <div class="pill-value gold" id="hud-leader">--</div>
+      </div>
+      <div class="pill">
+        <div class="pill-label">Epoch Term</div>
+        <div class="pill-value cyan" id="hud-term">Term 0</div>
+      </div>
+      <div class="pill">
+        <div class="pill-value green" id="hud-quorum">3 / 5</div>
+      </div>
+      <div class="pill">
+        <div class="pill-label">Committed Keys</div>
+        <div class="pill-value" id="hud-keys">0 Keys</div>
+      </div>
+      <div class="pill">
+        <div class="pill-label">RPC Activity</div>
+        <div class="pill-value cyan" id="hud-rpcs">0 RPCs</div>
+      </div>
+      <div class="pill">
+        <div class="pill-label">Packet Drop</div>
+        <div class="pill-value green" id="hud-drop">0.0%</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Left Sidebar: Nodes & Quorum Inspector -->
+  <aside class="left-panel">
+    <div class="panel-title">
+      <span>Consensus Ensembles</span>
+      <span style="font-size: 10px; color: var(--slate);" id="node-count-label">5 NODES</span>
+    </div>
+
+    <div id="nodes-container" style="display: flex; flex-direction: column; gap: 8px;">
+      <!-- Populated via JS -->
+    </div>
+
+    <div class="section-box" style="margin-top: auto;">
+      <div class="section-title">
+        <span>State Machine Store</span>
+        <span id="kv-count" style="color: var(--cyan);">0 Keys</span>
+      </div>
+      <div id="kv-list" style="font-size: 10px; max-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
+        <span style="color: var(--slate); font-style: italic;">No committed keys yet</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Right Sidebar: Chaos Blade & Propose Engine -->
+  <aside class="right-panel">
+    <div class="panel-title">
+      <span>Chaos Blade & Controls</span>
+      <span style="font-size: 10px; color: var(--gold);">SPLIT-BRAIN LAB</span>
+    </div>
+
+    <!-- Propose Command Box -->
+    <div class="section-box">
+      <div class="section-title">
+        <span>Propose Client Command</span>
+        <span style="color: var(--neon-green);">RAFT CONSENSUS</span>
+      </div>
+      <div class="form-row">
+        <select class="hud-select" id="prop-op" style="max-width: 80px;">
+          <option value="SET">SET</option>
+          <option value="INCR">INCR</option>
+          <option value="DEL">DEL</option>
+        </select>
+        <input type="text" class="hud-input" id="prop-key" placeholder="Key (e.g. counter)" value="ch_key_1">
+      </div>
+      <div class="form-row">
+        <input type="text" class="hud-input" id="prop-val" placeholder="Value (e.g. 100)" value="alpha_99">
+        <button class="hud-btn gold" onclick="proposeCommand()">PROPOSE</button>
+      </div>
+    </div>
+
+    <!-- Chaos Blade Partitions -->
+    <div class="section-title">
+      <span>Network Chaos Harness</span>
+      <span style="color: var(--crimson);">FAULT INJECTION</span>
+      </div>
+      <div class="chaos-btn-grid">
+        <button class="hud-btn danger" onclick="partitionSplitBrain()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+          3 vs 2 Split
+        </button>
+        <button class="hud-btn danger" onclick="isolateLeader()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+          Isolate Leader
+        </button>
+        <button class="hud-btn danger" onclick="killNode()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg>
+          Kill Follower
+        </button>
+        <button class="hud-btn heal" onclick="healCluster()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Heal All
+        </button>
+      </div>
+    </div>
+
+    <!-- Latency & Drop Sliders -->
+    <div class="section-box">
+      <div class="section-title">
+        <span>Virtual Transport Bus</span>
+      </div>
+      <div class="slider-row">
+        <span>Packet Drop:</span>
+        <input type="range" id="slider-drop" min="0" max="1" step="0.05" value="0" oninput="updateDropRate(this.value)">
+        <span id="txt-drop-val" style="color: var(--cyan); width: 36px; text-align: right;">0%</span>
+      </div>
+      <div class="slider-row">
+        <span>Jitter Latency:</span>
+        <input type="range" id="slider-lat" min="0" max="250" step="10" value="0" oninput="updateLatency(this.value)">
+        <span id="txt-lat-val" style="color: var(--cyan); width: 36px; text-align: right;">0ms</span>
+      </div>
+    </div>
+
+    <!-- Camera / View Options -->
+    <div class="section-box">
+      <div class="section-title">
+        <span>Viewport Radar</span>
+      </div>
+      <div class="form-row">
+        <button class="hud-btn" style="flex: 1;" onclick="toggleAutoRotate()">Auto Orbit</button>
+        <button class="hud-btn" style="flex: 1;" onclick="resetCamera()">Reset View</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Bottom Event Stream Panel -->
+  <footer class="bottom-panel">
+    <div class="panel-title" style="padding-bottom: 4px;">
+      <span>Live Raft RPC & Telemetry Bus Stream</span>
+      <span style="font-size: 10px; color: var(--cyan);">SUB-MILLISECOND EVENT TRACE</span>
+    </div>
+    <div class="events-stream" id="events-stream">
+      <!-- Stream rows inserted via JS -->
+    </div>
+  </footer>
+
+  <!-- Hover Tooltip -->
+  <div id="tooltip">
+    <div class="tt-title">
+      <span id="tt-id">NODE-1</span>
+      <span id="tt-role" class="role-badge leader">LEADER</span>
+    </div>
+    <div id="tt-content"></div>
+  </div>
+
+  <!-- Local Offline Three.js Assets -->
+  <script src="vendor/three.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/three@0.160.0/build/three.min.js'"></script>
+  <script src="vendor/OrbitControls.js" onerror="this.onerror=null;this.src='https://unpkg.com/three@0.160.0/examples/js/controls/OrbitControls.js'"></script>
+
+  <script>
+    function escapeHTML(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // --- 3D SCENE ARCHITECTURE ---
+    let scene, camera, renderer, controls;
+    let nodeGroup, laserGroup, particleGroup, barrierGroup;
+    let raycaster, mouse;
+    let nodeMeshes = {};
+    let activeClusterStatus = null;
+    let autoRotate = true;
+
+    const container = document.getElementById("webgl-container");
+    const tooltip = document.getElementById("tooltip");
+
+    function init3D() {
+      scene = new THREE.Scene();
+      scene.fog = new THREE.FogExp2(0x06080f, 0.016);
+
+      camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 18, 28);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.maxPolarAngle = Math.PI / 2.05;
+      controls.autoRotate = autoRotate;
+      controls.autoRotateSpeed = 0.6;
+
+      // Lights
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+      scene.add(ambientLight);
+
+      const dirLight = new THREE.DirectionalLight(0x00f3ff, 1.4);
+      dirLight.position.set(20, 40, 20);
+      scene.add(dirLight);
+
+      const goldLight = new THREE.DirectionalLight(0xffd700, 1.2);
+      goldLight.position.set(-20, -10, -20);
+      scene.add(goldLight);
+
+      // Groups
+      nodeGroup = new THREE.Group();
+      scene.add(nodeGroup);
+
+      laserGroup = new THREE.Group();
+      scene.add(laserGroup);
+
+      particleGroup = new THREE.Group();
+      scene.add(particleGroup);
+
+      barrierGroup = new THREE.Group();
+      scene.add(barrierGroup);
+
+      buildConstellationPlatform();
+
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+
+      window.addEventListener("resize", onWindowResize);
+      window.addEventListener("mousemove", onMouseMove);
+
+      animate();
+    }
+
+    function buildConstellationPlatform() {
+      // Concentric holographic rings
+      const ringRadii = [8, 12, 16];
+      ringRadii.forEach((r, idx) => {
+        const ringGeo = new THREE.RingGeometry(r - 0.04, r + 0.04, 64);
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: idx === 0 ? 0x00f3ff : 0x1e293b,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.25 - idx * 0.06
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = -0.5;
+        scene.add(ring);
+      });
+
+      // Ground grid
+      const grid = new THREE.GridHelper(32, 24, 0x00f3ff, 0x111928);
+      grid.position.y = -0.52;
+      scene.add(grid);
+    }
+
+    // --- NODE MESH CREATION & PLACEMENT ---
+    const nodeGeometry = new THREE.IcosahedronGeometry(1.3, 2);
+    const haloGeometry = new THREE.RingGeometry(1.8, 2.0, 32);
+
+    function createNodeMesh(nid, index, total) {
+      const angle = (index / total) * Math.PI * 2;
+      const radius%tion.set(x, 0, z);
+
+      // Core Sphere
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0x0088ff,
+        metalness: 0.5,
+        roughness: 0.2,
+        emissive: 0x0088ff,
+        emissiveIntensity: 0.35,
+      });
+      const core = new THREE.Mesh(nodeGeometry, mat);
+      group.add(core);
+
+      // Wireframe Outer Shell
+      const wireMat = new THREE.MeshBasicMaterial({
+        color: 0x00f3ff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.4
+      });
+      const shell = new THREE.Mesh(nodeGeometry, wireMat);
+      shell.scale.set(1.18, 1.18, 1.18);
+      group.add(shell);
+
+      // Orbital Halo
+      const haloMat = new THREE.MeshBasicMaterial({
+        color: 0x00f3ff,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.5
+      });
+      const halo = new THREE.Mesh(haloGeometry, haloMat);
+      halo.rotation.x = Math.PI / 2;
+      halo.position.y = -0.8;
+      group.add(halo);
+
+      group.userData = { id: nid, core, shell, halo, mat, wireMat, haloMat };
+      nodeGroup.add(group);
+      nodeMeshes[nid] = group;
+      return group;
+    }
+
+    function updateNodes3D(nodes, leaderId, isPartitioned, partitions) {
+      const nodeIds = Object.keys(nodes).sort();
+      const total = nodeIds.length;
+
+      nodeIds.forEach((nid, idx) => {
+        let nMesh = nodeMeshes[nid];
+        if (!nMesh) {
+          nMesh = createNodeMesh(nid, idx, total);
+        }
+
+        const data = nodes[nid];
+        const role = data.role;
+        let colorHex = 0x0088ff; // follower blue
+        let emissiveIntensity = 0.35;
+
+        if (role === "leader") {
+          colorHex = 0xffd700; // radiant gold
+          emissiveIntensity = 0.8;
+        } else if (role === "candidate") {
+          colorHex = 0xffaa00; // amber
+          emissiveIntensity = 0.6;
+        } else if (role === "dead") {
+          colorHex = 0xff0055; // crimson
+          emissiveIntensity = 0.1;
+        }
+
+        nMesh.userData.mat.color.setHex(colorHex);
+        nMesh.userData.mat.emissive.setHex(colorHex);
+        nMesh.userData.mat.emissiveIntensity = emissiveIntensity;
+        nMesh.userData.wireMat.color.setHex(colorHex);
+        nMesh.userData.haloMat.color.setHex(colorHex);
+
+        // Rotation pulse
+        nMesh.userData.core.rotation.y += 0.01;
+        nMesh.userData.shell.rotation.y -= 0.015;
+        nMesh.userData.shell.rotation.x += 0.005;
+
+        // Hover scale
+        nMesh.userData.raw = data;
+      });
+
+      // Update Heartbeat Lasers
+      updateLasers(nodes, leaderId, isPartitioned, partitions);
+    }
+
+    function updateLasers(nodes, leaderId, isPartitioned, partitions) {
+      // Clear old lasers
+      while (laserGroup.children.length > 0) {
+        const obj = laserGroup.children[0];
+        laserGroup.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+      }
+
+      if (!leaderId || !nodeMeshes[leaderId] || nodes[leaderId].role !== "leader") return;
+
+      const leaderPos = nodeMeshes[leaderId].position;
+
+      // Find which partition leader belongs to
+      let leaderPart = null;
+      if (isPartitioned && partitions) {
+        for (const p of partitions) {
+          if (p.includes(leaderId)) {
+            leaderPart = p;
+            break;
+          }
+        }
+      }
+
+      Object.keys(nodes).forEach(nid => {
+        if (nid === leaderId) return;
+        const targetMesh = nodeMeshes[nid];
+        if (!targetMesh) return;
+
+        // Check partition cut
+        const reachable = !isPartitioned || !leaderPart || leaderPart.includes(nid);
+        if (!reachable) return; // Split-brain cut: no laser!
+
+        const targetPos = targetMesh.position;
+
+        // Curved arc
+        const midX = (leaderPos.x + targetPos.x) / 2;
+        const midZ = (leaderPos.z + targetPos.z) / 2;
+        const midY = 2.2; // arc height
+
+        const curve = new THREE.QuadraticBezierCurve3(
+          new THREE.Vector3(leaderPos.x, leaderPos.y, leaderPos.z),
+          new THREE.Vector3(midX, midY, midZ),
+          new THREE.Vector3(targetPos.x, targetPos.y, targetPos.z)
+        );
+
+        const points = curve.getPoints(24);
+        const geom = new THREE.BufferGeometry().setFromPoints(points);
+        const mat = new THREE.LineBasicMaterial({
+          color: 0x00f3ff,
+          transparent: true,
+          opacity: 0.6,
+          linewidth: 2
+        });
+        const laserLine = new THREE.Line(geom, mat);
+        laserGroup.add(laserLine);
+      });
+
+      // Update Chaos Barrier Blade
+      updateChaosBarrier(isPartitioned);
+    }
+
+    function updateChaosBarrier(isPartitioned) {
+      while (barrierGroup.children.length > 0) {
+        const obj = barrierGroup.children[0];
+        barrierGroup.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+      }
+
+      if (isPartitioned) {
+        // Red glowing partition laser wall cutting cluster in half
+        const wallGeo = new THREE.PlaneGeometry(24, 10);
+        const wallMat = new THREE.MeshBasicMaterial({
+          color: 0xff0055,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.28,
+          wireframe: false
+        });
+        const wall = new THREE.Mesh(wallGeo, wallMat);
+        wall.position.set(0, 4, 0);
+        wall.rotation.y = Math.PI / 4;
+        barrierGroup.add(wall);
+
+        // Grid wireframe over the partition wall
+        const wireMat = new THREE.MeshBasicMaterial({
+          color: 0xff0055,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.7,
+          wireframe: true
+        });
+        const wireWall = new THREE.Mesh(wallGeo, wireMat);
+        wireWall.position.set(0, 4, 0);
+        wireWall.rotation.y = Math.PI / 4;
+        barrierGroup.add(wireWall);
+      }
+    }
+
+    function onMouseMove(event) {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const meshesToTest = [];
+      Object.values(nodeMeshes).forEach(g => {
+        meshesToTest.push(g.userData.core);
+      });
+
+      const intersects = raycaster.intersectObjects(meshesToTest);
+      if (intersects.length > 0) {
+        const hitGroup = intersects[0].object.parent;
+        const d = hitGroup.userData.raw;
+        if (d) {
+          tooltip.style.display = "block";
+          tooltip.style.left = (event.clientX + 14) + "px";
+          tooltip.style.top = (event.clientY + 14) + "px";
+
+          document.getElementById("tt-id").innerText = d.node_id;
+          const ttRole = document.getElementById("tt-role");
+          ttRole.innerText = d.role.toUpperCase();
+          ttRole.className = "role-badge " + d.role;
+
+          document.getElementById("tt-content").innerHTML = `
+            <div><strong>Term:</strong> ${d.term}</div>
+            <div><strong>Commit Index:</strong> ${d.commit_index}</div>
+            <div><strong>Last Applied:</strong> ${d.last_applied}</div>
+            <div><strong>Log Length:</strong> ${d.last_log_index} entries</div>
+            <div><strong>Voted For:</strong> ${d.voted_for || "None"}</div>
+            <div><strong>Timeout:</strong> ${d.election_timeout.toFixed(2)}s</div>
+          `;
+        }
+      } else {
+        tooltip.style.display = "none";
+      }
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+
+      // Continuous rotation of shells
+      Object.values(nodeMeshes).forEach(g => {
+        g.userData.core.rotation.y += 0.005;
+        g.userData.shell.rotation.y -= 0.008;
+      });
+
+      renderer.render(scene, camera);
+    }
+
+    // --- REST API SYNCHRONIZATION ---
+    async function fetchClusterStatus() {
+      try {
+        const res = await fetch("/api/status");
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        activeClusterStatus = data;
+        renderHUD(data);
+      } catch (err) {
+        // Fallback simulation mode if opened without backend
+        runSimulationTick();
+      }
+    }
+
+    async function fetchEvents() {
+      try {
+        const res = await fetch("/api/events?limit=25");
+        if (!res.ok) return;
+        const events = await res.json();
+        renderEvents(events);
+      } catch (e) {}
+    }
+
+    function renderHUD(data) {
+      const leaderId = data.leader_id || "NONE";
+      const term = data.leader_term !== null ? data.leader_term : "-";
+      const hasQuorum = data.has_quorum;
+      const isPartitioned = data.transport ? data.transport.is_partitioned : false;
+      const partitions = data.transport ? data.transport.partitions : [];
+      const dropRate = data.transport ? data.transport.drop_rate : 0.0;
+      const totalRpcs = data.transport ? data.transport.total_rpcs : 0;
+
+      // Status Badge
+      const badge = document.getElementById("hud-badge");
+      const badgeTxt = document.getElementById("hud-badge-txt");
+      if (!hasQuorum) {
+        badge.className = "status-badge danger";
+        badgeTxt.innerText = "QUORUM LOST // SPLIT BRAIN";
+      } else if (isPartitioned) {
+        badge.className = "status-badge warning";
+        badgeTxt.innerText = "PARTITIONED CLUSTER";
+      } else {
+        badge.className = "status-badge";
+        badgeTxt.innerText = "QUORUM HEALTHY";
+      }
+
+      // Telemetry Pills
+      document.getElementById("hud-leader").innerText = leaderId;
+      document.getElementById("hud-term").innerText = "Term " + term;
+      document.getElementById("hud-quorum").innerText = (data.majority_threshold || 3) + " / " + (data.node_count || 5);
+      document.getElementById("hud-rpcs").innerText = totalRpcs + " RPCs";
+      document.getElementById("hud-drop").innerText = (dropRate * 100).toFixed(1) + "%";
+
+      const kv = data.kv_store || {};
+      const keyCount = Object.keys(kv).length;
+      document.getElementById("hud-keys").innerText = keyCount + " Keys";
+      document.getElementById("kv-count").innerText = keyCount + " Keys";
+
+      // Render KV Store
+      const kvList = document.getElementById("kv-list");
+      if (keyCount === 0) {
+        kvList.innerHTML = `<span style="color: var(--slate); font-style: italic;">No committed keys yet</span>`;
+      } else {
+        kvList.innerHTML = Object.entries(kv).slice(0, 10).map(([k, v]) => `
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding: 2px 0;">
+            <span style="color: var(--cyan); font-weight: 700;">${escapeHTML(k)}</span>
+            <span style="color: #fff;">${escapeHTML(JSON.stringify(v))}</span>
+          </div>
+        `).join("");
+      }
+
+      // Render Nodes Sidebar
+      const nodes = data.nodes || {};
+      const container = document.getElementById("nodes-container");
+      container.innerHTML = Object.keys(nodes).sort().map(nid => {
+        const n = nodes[nid];
+        const isLead = n.role === "leader";
+        const satPct = Math.min(100, Math.round((n.commit_index / Math.max(1, n.last_log_index)) * 100));
+        return `
+          <div class="node-card ${n.role}" onclick="focusNode()">
+            <div class="node-card-header">
+              <span class="node-name">${nid}</span>
+              <span class="role-badge ${n.role}">${n.role.toUpperCase()}</span>
+            </div>
+            <div class="node-stats-row">
+              <span>Term: <strong>${n.term}</strong></span>
+              <span>Commit: <strong>${n.commit_index} / ${n.last_log_index}</strong></span>
+              <span>Timeout: <strong>${n.election_timeout.toFixed(2)}s</strong></span>
+            </div>
+            <div class="node-sat-bar">
+              <div class="node-sat-fill" style="width: ${satPct}%; background: ${isLead ? "var(--gold)" : "var(--cyan)"};"></div>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      // 3D Scene Updates
+      updateNodes3D(nodes, data.leader_id, isPartitioned, partitions);
+    }
+
+    function renderEvents(events) {
+      if (!events || events.length === 0) return;
+      const stream = document.getElementById("events-stream");
+      stream.innerHTML = events.slice(-15).reverse().map(ev => {
+        let badgeClass = "heartbeat";
+        const typ = ev.event || ev.type || "rpc";
+        if (typ.includes("election")) badgeClass = "election";
+        else if (typ.includes("vote")) badgeClass = "vote";
+        else if (typ.includes("leader")) badgeClass = "leader";
+        else if (typ.includes("commit")) badgeClass = "commit";
+        else if (typ.includes("partition") || typ.includes("isolate")) badgeClass = "chaos";
+        else if (typ.includes("heal")) badgeClass = "healed";
+
+        const timeStr = new Date(ev.timestamp * 1000).toLocaleTimeString();
+        const detail = JSON.stringify(ev.details || {});
+
+        return `
+          <div class="event-line">
+            <span class="ev-time">${escapeHTML(timeStr)}</span>
+            <span class="ev-badge ${escapeHTML(badgeClass)}">${escapeHTML(typ)}</span>
+            <span class="ev-detail">${escapeHTML(ev.source || "*")} ➔ ${escapeHTML(ev.destination || "*")}: ${escapeHTML(detail)}</span>
+          </div>
+        `;
+      }).join("");
+    }
+
+    // --- CHAOS & COMMAND ACTIONS ---
+    async function proposeCommand() {
+      const op = document.getElementById("prop-op").value;
+      const key = document.getElementById("prop-key").value.trim();
+      const val = document.getElementById("prop-val").value.trim();
+      if (!key) return;
+
+      try {
+        const res = await fetch("/api/propose", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ op, key, value: val })
+        });
+        const out = await res.json();
+        fetchClusterStatus();
+        fetchEvents();
+      } catch (err) {
+        console.error("Propose error:", err);
+      }
+    }
+
+    async function partitionSplitBrain() {
+      try {
+        await fetch("/api/chaos/partition", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ groups: [["node1", "node2", "node3"], ["node4", "node5"]] })
+        });
+        fetchClusterStatus();
+      } catch (e) {}
+    }
+
+    async function isolateLeader() {
+      if (!activeClusterStatus || !activeClusterStatus.leader_id) return;
+      try {
+        await fetch("/api/chaos/isolate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ node_id: activeClusterStatus.leader_id })
+        });
+        fetchClusterStatus();
+      } catch (e) {}
+    }
+
+    async function killNode() {
+      if (!activeClusterStatus || !activeClusterStatus.nodes) return;
+      // Kill first non-leader node
+      const candidates = Object.keys(activeClusterStatus.nodes).filter(nid => nid !== activeClusterStatus.leader_id);
+      if (candidates.length === 0) return;
+      try {
+        await fetch("/api/chaos/kill", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ node_id: candidates[0] })
+        });
+        fetchClusterStatus();
+      } catch (e) {}
+    }
+
+    async function healCluster() {
+      try {
+        await fetch("/api/chaos/heal", { method: "POST" });
+        fetchClusterStatus();
+      } catch (e) {}
+    }
+
+    async function updateDropRate(val) {
+      document.getElementById("txt-drop-val").innerText = Math.round(val * 100) + "%";
+      try {
+        await fetch("/api/chaos/drop", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rate: parseFloat(val) })
+        });
+      } catch (e) {}
+    }
+
+    async function updateLatency(val) {
+      document.getElementById("txt-lat-val").innerText = val + "ms";
+      try {
+        await fetch("/api/chaos/latency", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ min_ms: parseFloat(val), max_ms: parseFloat(val) + 20 })
+        });
+      } catch (e) {}
+    }
+
+    function toggleAutoRotate() {
+      autoRotate = !autoRotate;
+      controls.autoRotate = autoRotate;
+    }
+
+    function resetCamera() {
+      camera.position.set(0, 18, 28);
+      const.target.set(0, 0, 0);
+    }
+
+    function focusNode(nid) {
+      const m = nodeMeshes[nid];
+      if (!m) return;
+      controls.target.copy(m.position);
+    }
+
+    // Fallback Simulation for previewing without backend server running
+    let simTerm = 1;
+    function runSimulationTick() {
+      const simulatedData = {
+        leader_id: "node1",
+        leader_term: simTerm,
+        has_quorum: true,
+        node_count: 5,
+        majority_threshold: 3,
+        transport: {
+          is_partitioned: false,
+          partitions: [],
+          drop_rate: 0.0,
+          total_rpcs: 1420
+        },
+        kv_store: { "raft_demo": "active", "term_epoch": simTerm, "ops_sec": 10500 },
+        nodes: {
+          node1: { node_id: "node1", role: "leader", term: simTerm, commit_index: 12, last_applied: 12, last_log_index: 12, voted_for: "node1", election_timeout: 0.25 },
+          node2: { node_id: "node2", role: "follower", term: simTerm, commit_index: 12, last_applied: 12, last_log_index: 12, voted_for: "node1", election_timeout: 0.28 },
+          node3: { node_id: "node3", role: "follower", term: simTerm, commit_index: 12, last_applied: 12, last_log_index: 12, voted_for: "node1", election_timeout: 0.22 },
+          node4: { node_id: "node4", role: "follower", term: simTerm, commit_index: 12, last_applied: 12, last_log_index: 12, voted_for: "node1", election_timeout: 0.31 },
+          node5: { node_id: "node5", role: "follower", term: simTerm, commit_index: 12, last_applied: 12, last_log_index: 12, voted_for: "node1", election_timeout: 0.29 },
+        }
+      };
+      renderHUD(simulatedData);
+    }
+
+    // Init
+    init3D();
+    fetchClusterStatus();
+    fetchEvents();
+    setInterval(fetchClusterStatus, 450);
+    setInterval(fetchEvents, 600);
+  </script>
+</body>
+</html>
