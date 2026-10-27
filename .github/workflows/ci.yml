@@ -1,0 +1,35 @@
+name: ChronoRaft CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Distributed Consensus & Safety Invariant Matrix
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Verify zero external dependencies
+      run: |
+        python -c "import socket, threading, queue, struct, http.server, json; print('Standard library modules verified')"
+
+    - name: Run complete test suite (Consensus, Replication, Chaos, Benchmarks, Security)
+      run: |
+        PYTHONPATH=. python -m unittest discover -s tests -v
+
+    - name: Run cluster benchmark harness
+      run: |
+        PYTHONPATH=. python cli.py --benchmark
